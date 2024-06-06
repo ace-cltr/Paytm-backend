@@ -6,7 +6,6 @@ import jwt from "jsonwebtoken";
 import z from "zod";
 import asyncHandler from "express-async-handler";
 import { JWT_SECRET } from "../server.js";
-import errorMap from "zod/locales/en.js";
 
 const router = Router();
 
@@ -70,8 +69,8 @@ router.post(
       return res.status(411).json({ message: "invalid password" });
     }
 
-    const userId = JSON.stringify(existingUser._id); // convert id coming from mongoose to string
-    const token = jwt.sign(userId, JWT_SECRET);
+    const userId = existingUser._id; // convert id coming from mongoose to string
+    const token = jwt.sign({ _id: userId }, JWT_SECRET);
     if (token) {
       res.status(200).json({
         message: `user ${username} logged in successfully`,
@@ -83,6 +82,35 @@ router.post(
   })
 );
 
+const updateBody = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  password: z.string().min(6).optional(),
+});
+
+router.put("/", authMiddleware, async (req, res) => {
+  const { success } = updateBody.safeParse(req.body);
+  if (!success) {
+    res.status(411).json({ message: "Invalid updating data" });
+  }
+  const { _id, password, firstName, lastName } = req.body;
+  try {
+    const salt = await bcrypt.genSalt(10); // re-encrypting password if provided
+    const hash = await bcrypt.hash(password, salt);
+    const userInfo = await User.updateOne(
+      { _id },
+      { password: hash, firstName, lastName }
+    );
+    console.log(userInfo);
+    if (userInfo) {
+      res.status(200).json({ message: "data updated successfully" });
+    }
+  } catch (err) {
+    res.status(403).json({ message: "error while updating data" });
+  }
+});
+
+// test route
 router.get(
   "/allusers",
   authMiddleware,

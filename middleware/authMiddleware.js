@@ -3,18 +3,24 @@ import jwt from "jsonwebtoken";
 
 function authMiddleware(req, res, next) {
   const { authorization } = req.headers;
-  let tokenArr;
-  if (authorization.startsWith("Bearer ")) {
-    tokenArr = authorization.split(" ");
-  } else {
-    return res.status(411).json({ message: "access denied" });
+
+  if (!authorization || !authorization.startsWith("Bearer ")) {
+    return res.status(403).json({ message: "access denied" });
   }
 
-  const verified = jwt.verify(tokenArr[1], JWT_SECRET);
-  if (verified) {
-    next();
-  } else {
-    res.status(411).json({
+  const token = authorization.split(" ")[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded._id) {
+      req.body._id = decoded._id; // adding userId in req. object
+      next();
+    } else {
+      res.status(403).json({
+        message: "access denied",
+      });
+    }
+  } catch (err) {
+    res.status(403).json({
       message: "access denied",
     });
   }
